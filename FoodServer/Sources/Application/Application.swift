@@ -16,12 +16,10 @@ public class App {
     let cloudEnv = CloudEnv()
     let meals = Meals()
     let connection = PostgreSQLConnection(host: "localhost", port: 5432, options: [.databaseName("FoodDatabase")])
-    private var mealStore: [String: Meal] = [:]
     
     public init() throws {
-
     }
-
+    
     func postInit() throws {
         // Capabilities
         initializeMetrics(app: self)
@@ -34,17 +32,16 @@ public class App {
     }
     
     func storeHandler(meal: Meal, completion: (Meal?, RequestError?) -> Void ) -> Void {
-        let photoHex = meal.photo.map{ String(format: "%02hhx", $0) }.joined()
         connection.connect() { error in
             if error != nil {return}
             else {
-                let insertQuery = Insert(into: meals, values: [meal.name, photoHex, meal.rating])
+                // Build and execute your query here.
+                let insertQuery = Insert(into: meals, values: [meal.name, String(describing: meal.photo), meal.rating])
                 connection.execute(query: insertQuery) { result in
-                    print("insert result: \(result.success)")
-                    //respond to the result here
-                    }
-                completion(meal, nil)
+                    // Respond to the result here
                 }
+                completion(meal, nil)
+            }
         }
     }
     
@@ -53,12 +50,16 @@ public class App {
         connection.connect() { error in
             if error != nil {return}
             else {
-                let query = Select(from :meals)
-                connection.execute(query: query) { queryResult in
+                // Build and execute your query here.
+                let selectQuery = Select(from :meals)
+                connection.execute(query: selectQuery) { queryResult in
+                    // Handle your result here
                     if let resultSet = queryResult.asResultSet {
                         for row in resultSet.rows {
+                            // Process rows
                             guard let name = row[0], let nameString = name as? String else{return}
-                            guard let photo = row[1], let photoData = photo as? Data else {return}
+                            guard let photo = row[1], let photoString = photo as? String else{return}
+                            guard let photoData = photoString.data(using: .utf8) else {return}
                             guard let rating = row[2], let ratingInt = Int(String(describing: rating)) else{return}
                             let currentMeal = Meal(name: nameString, photo: photoData, rating: ratingInt)
                             tempMealStore[nameString] = currentMeal
@@ -78,3 +79,5 @@ public class App {
         Kitura.run()
     }
 }
+
+
