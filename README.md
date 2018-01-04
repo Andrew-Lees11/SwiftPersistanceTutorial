@@ -14,7 +14,7 @@ This tutorial builds upon a server and application created by following the [Foo
 
 
 ## Pre-Requisites:
-This tutorial follows on from the FoodTracker Application and server created by following the [FoodTrackerBackend](https://github.com/IBM/FoodTrackerBackend) tutorial. If you have completed the FoodTracker Backend there are no further pre-requisites. 
+This tutorial follows on from the FoodTracker Application and server created by following the [FoodTrackerBackend](https://github.com/IBM/FoodTrackerBackend) tutorial. If you have completed the FoodTracker Backend there are no further pre-requisites.
 
 If you have not completed the [FoodTrackerBackend](https://github.com/IBM/FoodTrackerBackend) tutorial follow the steps below to get started:
 
@@ -89,15 +89,13 @@ At this point it will be empty since we have not inserted anything.
 cd SwiftPersistanceTutorial/FoodTrackerBackend/FoodServer
 open Package.swift
 ```
-2. Add Swift-Kuery and Swift-Kuery-PostgreSQL packages.
+2. Add the Swift-Kuery-PostgreSQL package.
 ```swift
-.package(url: "https://github.com/IBM-Swift/Swift-Kuery.git", .upToNextMinor(from: "1.0.0")),
 .package(url: "https://github.com/IBM-Swift/Swift-Kuery-PostgreSQL.git", .upToNextMinor(from: "1.0.1")),
 ```
-3. Change targets to include Swift-Kuery and Swift-Kuery-PostgreSQL.
+3. Change the target for Application to include Swift-Kuery-PostgreSQL.
 ```swift
-.target(name: "FoodServer", dependencies: [ .target(name: "Application"), "Kitura" , "HeliumLogger", "SwiftKuery", "SwiftKueryPostgreSQL"]),
-.target(name: "Application", dependencies: [ "Kitura", "Configuration", "CloudEnvironment","SwiftMetrics","Health", "SwiftKuery", "SwiftKueryPostgreSQL"]),
+.target(name: "Application", dependencies: [ "Kitura", "Configuration", "CloudEnvironment","SwiftMetrics","Health", "SwiftKueryPostgreSQL"]),
 ```
 ### Generate your FoodServer Xcode project
 Now we have added the dependencies to our `Package.swift` file we can generate our FoodServer Xcode project to make editing the code easier. The FoodServer is a pure Swift project and so the following steps could also be achieved by editing the .swift files.
@@ -152,7 +150,19 @@ let connection = PostgreSQLConnection(host: "localhost", port: 5432, options: [.
 ```
 below the line `let meals = Meals()`
 
-2. Inside your `storeHandler` and `loadHandler` functions create a connection to the database.
+2. Add the `@escaping` keyword to the completion closure in the `storeHandler`  signatures.
+```swift
+func storeHandler(meal: Meal, completion: @escaping (Meal?, RequestError?) -> Void ) -> Void {
+```
+
+3. Add the `@escaping` keyword to the completion closure in the `loadHandler`  signatures.
+```swift
+func loadHandler(completion: @escaping ([Meal]?, RequestError?) -> Void ) -> Void {
+```
+
+Allowing the completion closure to be escaping means the database queries can be asynchronous.
+
+4. Inside your `storeHandler` and `loadHandler` functions create a connection to the database.
 
 Paste the following code on the first line of both your `loadHandler` and `storeHandler` functions:
 ```swift
@@ -184,13 +194,13 @@ connection.execute(query: insertQuery) { result in
 ```
 **Note** After you execute the query you receive a `result` back containing the response from the database. Since we are performing an insert query this will only include whether the query was successful. For this tutorial, we assume the insert query was successful and ignore the returned value.
 
-3. After the `connection.execute` block, respond to the client with the inserted meal to indicate success:
+3. On the line below "// Respond to the result here" respond to the client with the inserted meal to indicate success:
 ```swift
 completion(meal, nil)
 ```
 4. Your completed `storeHandler` function should now look as follows:
 ```swift
-func storeHandler(meal: Meal, completion: (Meal?, RequestError?) -> Void ) -> Void {
+func storeHandler(meal: Meal, completion: @escaping (Meal?, RequestError?) -> Void ) -> Void {
     connection.connect() { error in
         if error != nil {return}
         else {
@@ -198,8 +208,8 @@ func storeHandler(meal: Meal, completion: (Meal?, RequestError?) -> Void ) -> Vo
             let insertQuery = Insert(into: meals, values: [meal.name, String(describing: meal.photo), meal.rating])
             connection.execute(query: insertQuery) { result in
                 // Respond to the result here
+                completion(meal, nil)
             }
-            completion(meal, nil)
         }
     }
 }
@@ -219,34 +229,31 @@ This should produce a table with the name, encoded photo string and rating of yo
 ### Handling an HTTP GET request
 We are going to add a select query to our `loadHandler` function. This will mean that when the server receives an HTTP `GET` request, it will perform an SQL `SELECT` query to get the meals from the database. This means the data the server returns to the client is taken from the database and will persist, even if the server is restarted.
 
-1. Create a temporary mealstore inside your `loadHander` function.
-Paste the following code on the first line of the `loadHander` function.
-```swift
-var tempMealStore: [String: Meal] = [:]
-```
-2.  Inside the `loadHander` function create an select query.
+1.  Inside the `loadHander` function create an select query.
 ```swift
 // Build and execute your query here.
 let query = Select(from :meals)
 ```
 This query will return everything from the "meals" table.
 
-3. Add the following code to execute the select query below your declaration of `selectQuery`
+2. Add the following code to execute the select query below your declaration of `selectQuery`
 ```swift
 connection.execute(query: selectQuery) { queryResult in
-    // Handle your result here
+// Handle your result here
 }
 ```
-
-4. Iterate through the rows returned by the database.
+3. Create a temporary array of meals inside your executed query closure.
+Paste the following code on the line below "// Handle your result here".
 ```swift
-// Handle your result here
+var tempMealStore = [Meal]()
+```
+4. On the line below your temporary Meal store, Iterate through the rows returned by the database.
+```swift
 if let resultSet = queryResult.asResultSet {
     for row in resultSet.rows {
         // Process rows
     }
 }
-
 ```
 5. For each row, create a `Meal` object from the table and add it to your temporary mealstore:
 ```swift
@@ -255,44 +262,42 @@ guard let name = row[0], let nameString = name as? String else{return}
 guard let photo = row[1], let photoString = photo as? String else{return}
 guard let photoData = photoString.data(using: .utf8) else {return}
 guard let rating = row[2], let ratingInt = Int(String(describing: rating)) else{return}
-let currentMeal = Meal(name: nameString, photo: photoData, rating: ratingInt)
-tempMealStore[nameString] = currentMeal
+guard let currentMeal = Meal(name: nameString, photo: photoData, rating: ratingInt)
+tempMealStore.append(currentMeal)
 ```
 In this example, we have parsed the cells from each row to be the correct type to create a meal object.
 **Note** For this tutorial we will not be storing the photo data in the database, instead we will store a string description of the photo and then encode that string to data when creating the `Meal` object.
 
-6. At the end of the `loadHandler` function, replace your old mealstore with your newly created `tempMealStore` and return this as your response to the `GET` request.
+6. At the end of the executed query closure, call the completion handler to return your newly created `tempMealStore`  as your response to the `GET` request.
 ```swift
-self.mealStore = tempMealStore
-let returnMeals: [Meal] = self.mealStore.map({ $0.value })
-completion(returnMeals, nil)
+completion(tempMealStore, nil)
 ```
 
 7. Your completed `loadHander` function should now look as follows:
 ```swift
-func loadHandler(completion: ([Meal]?, RequestError?) -> Void ) -> Void {
-    var tempMealStore: [String: Meal] = [:]
+func loadHandler(completion: @escaping ([Meal]?, RequestError?) -> Void ) -> Void {
     connection.connect() { error in
         if error != nil {return}
         else {
+            // Build and execute your query here.
             let selectQuery = Select(from :meals)
             connection.execute(query: selectQuery) { queryResult in
+                // Handle your result here
                 if let resultSet = queryResult.asResultSet {
                     for row in resultSet.rows {
+                        // Process rows
                         guard let name = row[0], let nameString = name as? String else{return}
                         guard let photo = row[1], let photoString = photo as? String else{return}
                         guard let photoData = photoString.data(using: .utf8) else {return}
                         guard let rating = row[2], let ratingInt = Int(String(describing: rating)) else{return}
-                        let currentMeal = Meal(name: nameString, photo: photoData, rating: ratingInt)
-                        tempMealStore[nameString] = currentMeal
+                        guard let currentMeal = Meal(name: nameString, photo: photoData, rating: ratingInt)
+                        tempMealStore.append(currentMeal)
                     }
                 }
+                completion(tempMealStore, nil)
             }
         }
     }
-    self.mealStore = tempMealStore
-    let returnMeals: [Meal] = self.mealStore.map({ $0.value })
-    completion(returnMeals, nil)
 }
 ```
 
@@ -301,3 +306,4 @@ You can verify this by going to [http://localhost:8080/meals](http://localhost:8
 You can now restart your server and this data will persist, since it is stored within the database!
 
 If you would like to view a complete ToDoList application with database persistence, which contains further examples of HTTP and SQL calls please see [PersistentiOSKituraKit](https://github.com/Andrew-Lees11/PersistentiOSKituraKit).
+
