@@ -39,14 +39,13 @@ public class App {
                 let insertQuery = Insert(into: meals, values: [meal.name, String(describing: meal.photo), meal.rating])
                 connection.execute(query: insertQuery) { result in
                     // Respond to the result here
-                completion(meal, nil)
+                    completion(meal, nil)
                 }
             }
         }
     }
     
     func loadHandler(completion: @escaping ([Meal]?, RequestError?) -> Void ) -> Void {
-        var tempMealStore: [String: Meal] = [:]
         connection.connect() { error in
             if error != nil {return}
             else {
@@ -54,6 +53,7 @@ public class App {
                 let selectQuery = Select(from :meals)
                 connection.execute(query: selectQuery) { queryResult in
                     // Handle your result here
+                    var tempMealStore = [Meal]()
                     if let resultSet = queryResult.asResultSet {
                         for row in resultSet.rows {
                             // Process rows
@@ -61,12 +61,11 @@ public class App {
                             guard let photo = row[1], let photoString = photo as? String else{return}
                             guard let photoData = photoString.data(using: .utf8) else {return}
                             guard let rating = row[2], let ratingInt = Int(String(describing: rating)) else{return}
-                            let currentMeal = Meal(name: nameString, photo: photoData, rating: ratingInt)
-                            tempMealStore[nameString] = currentMeal
+                            guard let currentMeal = Meal(name: nameString, photo: photoData, rating: ratingInt) else{return}
+                            tempMealStore.append(currentMeal)
                         }
                     }
-                    let returnMeals: [Meal] = tempMealStore.map({ $0.value })
-                    completion(returnMeals, nil)
+                    completion(tempMealStore, nil)
                 }
             }
         }
