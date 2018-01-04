@@ -232,7 +232,7 @@ We are going to add a select query to our `loadHandler` function. This will mean
 1.  Inside the `loadHander` function create an select query.
 ```swift
 // Build and execute your query here.
-let query = Select(from :meals)
+let query = Select(from: meals)
 ```
 This query will return everything from the "meals" table.
 
@@ -254,6 +254,7 @@ if let resultSet = queryResult.asResultSet {
         // Process rows
     }
 }
+// Return meals here
 ```
 5. For each row, create a `Meal` object from the table and add it to your temporary mealstore:
 ```swift
@@ -262,7 +263,7 @@ guard let name = row[0], let nameString = name as? String else{return}
 guard let photo = row[1], let photoString = photo as? String else{return}
 guard let photoData = photoString.data(using: .utf8) else {return}
 guard let rating = row[2], let ratingInt = Int(String(describing: rating)) else{return}
-guard let currentMeal = Meal(name: nameString, photo: photoData, rating: ratingInt)
+guard let currentMeal = Meal(name: nameString, photo: photoData, rating: ratingInt) else{return}
 tempMealStore.append(currentMeal)
 ```
 In this example, we have parsed the cells from each row to be the correct type to create a meal object.
@@ -270,6 +271,7 @@ In this example, we have parsed the cells from each row to be the correct type t
 
 6. At the end of the executed query closure, call the completion handler to return your newly created `tempMealStore`  as your response to the `GET` request.
 ```swift
+// Return meals here
 completion(tempMealStore, nil)
 ```
 
@@ -283,6 +285,7 @@ func loadHandler(completion: @escaping ([Meal]?, RequestError?) -> Void ) -> Voi
             let selectQuery = Select(from :meals)
             connection.execute(query: selectQuery) { queryResult in
                 // Handle your result here
+                var tempMealStore = [Meal]()
                 if let resultSet = queryResult.asResultSet {
                     for row in resultSet.rows {
                         // Process rows
@@ -290,10 +293,11 @@ func loadHandler(completion: @escaping ([Meal]?, RequestError?) -> Void ) -> Voi
                         guard let photo = row[1], let photoString = photo as? String else{return}
                         guard let photoData = photoString.data(using: .utf8) else {return}
                         guard let rating = row[2], let ratingInt = Int(String(describing: rating)) else{return}
-                        guard let currentMeal = Meal(name: nameString, photo: photoData, rating: ratingInt)
+                        guard let currentMeal = Meal(name: nameString, photo: photoData, rating: ratingInt) else{return}
                         tempMealStore.append(currentMeal)
                     }
                 }
+                // Return meals here
                 completion(tempMealStore, nil)
             }
         }
