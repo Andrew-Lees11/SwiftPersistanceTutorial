@@ -31,7 +31,7 @@ public class App {
         router.get("/meals", handler: loadHandler)
     }
     
-    func storeHandler(meal: Meal, completion: (Meal?, RequestError?) -> Void ) -> Void {
+    func storeHandler(meal: Meal, completion: @escaping (Meal?, RequestError?) -> Void ) -> Void {
         connection.connect() { error in
             if error != nil {return}
             else {
@@ -39,13 +39,13 @@ public class App {
                 let insertQuery = Insert(into: meals, values: [meal.name, String(describing: meal.photo), meal.rating])
                 connection.execute(query: insertQuery) { result in
                     // Respond to the result here
-                }
                 completion(meal, nil)
+                }
             }
         }
     }
     
-    func loadHandler(completion: ([Meal]?, RequestError?) -> Void ) -> Void {
+    func loadHandler(completion: @escaping ([Meal]?, RequestError?) -> Void ) -> Void {
         var tempMealStore: [String: Meal] = [:]
         connection.connect() { error in
             if error != nil {return}
@@ -65,12 +65,11 @@ public class App {
                             tempMealStore[nameString] = currentMeal
                         }
                     }
+                    let returnMeals: [Meal] = tempMealStore.map({ $0.value })
+                    completion(returnMeals, nil)
                 }
             }
         }
-        self.mealStore = tempMealStore
-        let returnMeals: [Meal] = self.mealStore.map({ $0.value })
-        completion(returnMeals, nil)
     }
     
     public func run() throws {

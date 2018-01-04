@@ -10,4 +10,7 @@
 *.xcodeproj/*
 Package.resolved
 .DS_Store
-Pods
+iOS/FoodTracker/Pods/
+iOS/FoodTracker/Podfile.lock
+iOS/FoodTracker/FoodTracker.xcodeproj/
+iOS/FoodTracker/FoodTracker.xcworkspace/
